@@ -1,17 +1,32 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import throttle from "lodash.throttle";
 
-interface Props {}
+interface Props {
+  onDrawingChange?: (canvas: HTMLCanvasElement) => any;
+}
 
 interface Position {
   x: number;
   y: number;
 }
 
-export const DrawingPad: React.FC<Props> = () => {
+export const DrawingPad: React.FC<Props> = ({ onDrawingChange }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>();
   const [isDrawing, setIsDrawing] = useState(false);
   const positionRef = useRef<Position>({ x: 0, y: 0 });
+
+  const runIfCanvasAndContextExists = (
+    func: (canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) => any
+  ) => {
+    if (canvasRef.current) {
+      const context = canvasRef.current.getContext("2d");
+
+      if (context) {
+        func(canvasRef.current, context);
+      }
+    }
+  };
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -35,6 +50,39 @@ export const DrawingPad: React.FC<Props> = () => {
 
     console.log(canvasRef);
   }, []);
+
+  // useEffect(() => {
+  //   const resize = () => {
+  //     // figure this out: canvas drawing disappears on resize
+  //     const canvas = canvasRef.current as HTMLCanvasElement;
+  //     canvas.width = canvas.offsetWidth;
+  //     canvas.height = canvas.offsetHeight;
+  //   };
+
+  //   window.addEventListener("resize", resize);
+
+  //   return () => window.removeEventListener("resize", resize);
+  // }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const throttledOnDrawingChange = useCallback(
+    throttle(() => {
+      if (onDrawingChange && canvasRef.current) {
+        onDrawingChange(canvasRef.current);
+      }
+    }, 1000),
+    [onDrawingChange]
+  );
+
+  const handleOnClear = () => {
+    console.log("clearing");
+
+    runIfCanvasAndContextExists((canvas, context) => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "black";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    });
+  };
 
   const handleMouseDown: React.MouseEventHandler<HTMLCanvasElement> = (e) => {
     console.log("mousedown: drawing=true");
@@ -62,8 +110,6 @@ export const DrawingPad: React.FC<Props> = () => {
       const x = e.nativeEvent.offsetX;
       const y = e.nativeEvent.offsetY;
 
-      //   ctx.strokeStyle = `hsl(0, 0%, ${0}%)`;
-      //   ctx.strokeStyle = `hsl(0, 0%, ${50}%)`;
       ctx.strokeStyle = `#ffffff`;
 
       ctx.beginPath();
@@ -74,6 +120,8 @@ export const DrawingPad: React.FC<Props> = () => {
       const position: Position = { x, y };
 
       positionRef.current = position;
+
+      throttledOnDrawingChange();
     }
   };
 
@@ -83,30 +131,38 @@ export const DrawingPad: React.FC<Props> = () => {
     setIsDrawing(false);
   };
 
-  const getImageURL = () => {
-    const canvas = canvasRef.current;
+  // const getImageURL = () => {
+  //   const canvas = canvasRef.current;
 
-    if (canvas) {
-      // Create a new canvas element for the resized image
-      const resizedCanvas = document.createElement("canvas");
-      const resizedCtx = resizedCanvas.getContext("2d");
+  //   if (canvas) {
+  //     // Create a new canvas element for the resized image
+  //     const resizedCanvas = document.createElement("canvas");
+  //     const resizedCtx = resizedCanvas.getContext("2d");
 
-      resizedCanvas.width = 28;
-      resizedCanvas.height = 28;
+  //     resizedCanvas.width = 28;
+  //     resizedCanvas.height = 28;
 
-      if (resizedCtx) {
-        resizedCtx.drawImage(canvas, 0, 0, 28, 28);
-        const resizedImageDataURL = resizedCanvas.toDataURL();
+  //     if (resizedCtx) {
+  //       resizedCtx.drawImage(canvas, 0, 0, 28, 28);
+  //       const resizedImageDataURL = resizedCanvas.toDataURL();
+  //       const imageData = resizedCtx.getImageData(
+  //         0,
+  //         0,
+  //         resizedCanvas.width,
+  //         resizedCanvas.height
+  //       );
 
-        console.log(resizedImageDataURL);
-      }
-    }
-  };
+  //       console.log(resizedImageDataURL);
+  //       console.log(imageData);
+  //     }
+  //   }
+  // };
 
   return (
     <div className="w-full h-full">
       {<pre>{JSON.stringify(isDrawing)}</pre>}
-      <button onClick={getImageURL}>Get Image URL</button>
+      {/* <button onClick={getImageURL}>Get Image URL</button> */}
+      <button onClick={handleOnClear}>Clear</button>
       <canvas
         ref={canvasRef}
         className="w-full h-full"
