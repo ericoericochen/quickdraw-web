@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 
 app = Flask(__name__)
 
@@ -8,5 +8,10 @@ def hello():
     return "Hello, World!"
 
 
+@app.route("/boom", methods=["POST"])
+def boom():
+    return "Boom!"
+
+
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
