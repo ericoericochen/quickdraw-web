@@ -1,8 +1,15 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import throttle from "lodash.throttle";
 
 interface Props {
-  onDrawingChange?: (canvas: HTMLCanvasElement) => any;
+  drawingChangeThrottle?: number;
+  resizeTo?: number; // size to resize canvas image to for onDrawingChange
+  onDrawingChange?: (change: IDrawingChange) => any;
+}
+
+export interface IDrawingChange {
+  isEmpty: boolean;
+  image: ImageData;
 }
 
 interface Position {
@@ -10,68 +17,81 @@ interface Position {
   y: number;
 }
 
-export const DrawingPad: React.FC<Props> = ({ onDrawingChange }) => {
+export const DrawingPad: React.FC<Props> = ({
+  drawingChangeThrottle = 1000,
+  resizeTo,
+  onDrawingChange,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const contextRef = useRef<CanvasRenderingContext2D | null>();
   const [isDrawing, setIsDrawing] = useState(false);
   const positionRef = useRef<Position>({ x: 0, y: 0 });
 
-  const runIfCanvasAndContextExists = (
-    func: (canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) => any
-  ) => {
+  function runIfCanvasAndContextExists<T>(
+    func: (canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) => T
+  ) {
     if (canvasRef.current) {
       const context = canvasRef.current.getContext("2d");
 
       if (context) {
-        func(canvasRef.current, context);
+        return func(canvasRef.current, context);
       }
     }
-  };
+  }
 
   useEffect(() => {
-    if (canvasRef.current) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-
+    runIfCanvasAndContextExists((canvas, ctx) => {
       canvas.width = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
 
-      if (ctx) {
-        contextRef.current = ctx;
+      // set up draw settings
+      ctx.lineWidth = 30;
+      ctx.lineCap = "round";
 
-        // set up draw settings
-        ctx.lineWidth = 30;
-        ctx.lineCap = "round";
-
-        ctx.fillStyle = "black";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-    }
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    });
 
     console.log(canvasRef);
   }, []);
 
-  // useEffect(() => {
-  //   const resize = () => {
-  //     // figure this out: canvas drawing disappears on resize
-  //     const canvas = canvasRef.current as HTMLCanvasElement;
-  //     canvas.width = canvas.offsetWidth;
-  //     canvas.height = canvas.offsetHeight;
-  //   };
+  useEffect(() => {
+    const resize = () => {
+      runIfCanvasAndContextExists((canvas, ctx) => {
+        const imageData = getImageData(canvas);
 
-  //   window.addEventListener("resize", resize);
+        if (imageData) {
+          canvas.width = canvas.offsetWidth;
+          canvas.height = canvas.offsetHeight;
 
-  //   return () => window.removeEventListener("resize", resize);
-  // }, []);
+          ctx.lineWidth = 30;
+          ctx.lineCap = "round";
+
+          ctx.fillStyle = "black";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.putImageData(imageData, 0, 0);
+        }
+      });
+    };
+
+    window.addEventListener("resize", resize);
+
+    return () => window.removeEventListener("resize", resize);
+  }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const throttledOnDrawingChange = useCallback(
-    throttle(() => {
-      if (onDrawingChange && canvasRef.current) {
-        onDrawingChange(canvasRef.current);
-      }
-    }, 1000),
-    [onDrawingChange]
+    throttle((isEmpty: boolean) => {
+      runIfCanvasAndContextExists((canvas) => {
+        if (onDrawingChange) {
+          const imageData = getImageData(canvas, resizeTo);
+
+          if (imageData) {
+            onDrawingChange({ isEmpty, image: imageData });
+          }
+        }
+      });
+    }, drawingChangeThrottle),
+    [onDrawingChange, drawingChangeThrottle, resizeTo]
   );
 
   const handleOnClear = () => {
@@ -102,10 +122,7 @@ export const DrawingPad: React.FC<Props> = ({ onDrawingChange }) => {
       return;
     }
 
-    const ctx = contextRef.current;
-    if (ctx) {
-      console.log("drawing!");
-
+    runIfCanvasAndContextExists((_, ctx) => {
       const { x: prevX, y: prevY } = positionRef.current;
       const x = e.nativeEvent.offsetX;
       const y = e.nativeEvent.offsetY;
@@ -121,8 +138,8 @@ export const DrawingPad: React.FC<Props> = ({ onDrawingChange }) => {
 
       positionRef.current = position;
 
-      throttledOnDrawingChange();
-    }
+      throttledOnDrawingChange(false);
+    });
   };
 
   const handleMouseUp = () => {
@@ -131,37 +148,56 @@ export const DrawingPad: React.FC<Props> = ({ onDrawingChange }) => {
     setIsDrawing(false);
   };
 
-  // const getImageURL = () => {
-  //   const canvas = canvasRef.current;
+  const getImageData = (
+    canvas: HTMLCanvasElement,
+    resizeTo?: number
+  ): ImageData | undefined => {
+    const resizedCanvas = document.createElement("canvas");
+    const resizedCtx = resizedCanvas.getContext("2d");
 
-  //   if (canvas) {
-  //     // Create a new canvas element for the resized image
-  //     const resizedCanvas = document.createElement("canvas");
-  //     const resizedCtx = resizedCanvas.getContext("2d");
+    if (resizeTo) {
+      resizedCanvas.width = resizeTo;
+      resizedCanvas.height = resizeTo;
+    } else {
+      resizedCanvas.width = canvas.width;
+      resizedCanvas.height = canvas.height;
+    }
 
-  //     resizedCanvas.width = 28;
-  //     resizedCanvas.height = 28;
+    if (resizedCtx) {
+      resizedCtx.drawImage(
+        canvas,
+        0,
+        0,
+        resizedCanvas.width,
+        resizedCanvas.height
+      );
+      const resizedImageDataURL = resizedCanvas.toDataURL();
+      const imageData = resizedCtx.getImageData(
+        0,
+        0,
+        resizedCanvas.width,
+        resizedCanvas.height
+      );
 
-  //     if (resizedCtx) {
-  //       resizedCtx.drawImage(canvas, 0, 0, 28, 28);
-  //       const resizedImageDataURL = resizedCanvas.toDataURL();
-  //       const imageData = resizedCtx.getImageData(
-  //         0,
-  //         0,
-  //         resizedCanvas.width,
-  //         resizedCanvas.height
-  //       );
+      console.log(resizedImageDataURL);
+      console.log(imageData);
 
-  //       console.log(resizedImageDataURL);
-  //       console.log(imageData);
-  //     }
-  //   }
-  // };
+      return imageData;
+    }
+  };
 
   return (
     <div className="w-full h-full">
       {<pre>{JSON.stringify(isDrawing)}</pre>}
-      {/* <button onClick={getImageURL}>Get Image URL</button> */}
+      {/* <button
+        onClick={() => {
+          const imageData = getImageData(canvasRef.current!, resizeTo);
+
+          console.log({ imageData });
+        }}
+      >
+        Get Image URL
+      </button> */}
       <button onClick={handleOnClear}>Clear</button>
       <canvas
         ref={canvasRef}
