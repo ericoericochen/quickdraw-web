@@ -40,11 +40,14 @@ export const DrawingPad: React.FC<Props> = ({
 
   useEffect(() => {
     runIfCanvasAndContextExists((canvas, ctx) => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
+      // canvas.width = canvas.offsetWidth;
+      // canvas.height = canvas.offsetHeight;
+      canvas.width = 100;
+      canvas.height = 100;
 
       // set up draw settings
-      ctx.lineWidth = 30;
+      // ctx.lineWidth = 30;
+      ctx.lineWidth = 5;
       ctx.lineCap = "round";
 
       ctx.fillStyle = "black";
@@ -54,29 +57,29 @@ export const DrawingPad: React.FC<Props> = ({
     console.log(canvasRef);
   }, []);
 
-  useEffect(() => {
-    const resize = () => {
-      runIfCanvasAndContextExists((canvas, ctx) => {
-        const imageData = getImageData(canvas);
+  // useEffect(() => {
+  //   const resize = () => {
+  //     runIfCanvasAndContextExists((canvas, ctx) => {
+  //       const imageData = getImageData(canvas);
 
-        if (imageData) {
-          canvas.width = canvas.offsetWidth;
-          canvas.height = canvas.offsetHeight;
+  //       if (imageData) {
+  //         canvas.width = canvas.offsetWidth;
+  //         canvas.height = canvas.offsetHeight;
 
-          ctx.lineWidth = 30;
-          ctx.lineCap = "round";
+  //         ctx.lineWidth = 30;
+  //         ctx.lineCap = "round";
 
-          ctx.fillStyle = "black";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.putImageData(imageData, 0, 0);
-        }
-      });
-    };
+  //         ctx.fillStyle = "black";
+  //         ctx.fillRect(0, 0, canvas.width, canvas.height);
+  //         ctx.putImageData(imageData, 0, 0);
+  //       }
+  //     });
+  //   };
 
-    window.addEventListener("resize", resize);
+  //   window.addEventListener("resize", resize);
 
-    return () => window.removeEventListener("resize", resize);
-  }, []);
+  //   return () => window.removeEventListener("resize", resize);
+  // }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const throttledOnDrawingChange = useCallback(
@@ -201,7 +204,7 @@ export const DrawingPad: React.FC<Props> = ({
       <button onClick={handleOnClear}>Clear</button>
       <canvas
         ref={canvasRef}
-        className="w-full h-full"
+        // className="w-full h-full"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
