@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from PIL import Image, ImageOps
+from PIL import Image
 import base64
 import io
 import torch
@@ -42,23 +42,18 @@ def inference():
     # open with PIL, resize and convert to black-white image
     image = Image.open(image_bytes).resize((IMAGE_WIDTH, IMAGE_HEIGHT)).convert("L")
 
-    image.show()
-
     # convert to numpy and normalize
     image = np.array(image) / 255
     image = np.expand_dims(image, axis=0)
 
     # convert tensor
     image = torch.from_numpy(image).type(torch.float32)
-    print(image.shape)
 
     # model: minialexnet
     model = load_model("./minialexnet.pth", device=device)
 
     # inference
     probabilities = predict(model, image, labels=labels, k=5, device=device)
-
-    print(probabilities)
 
     return jsonify({"probabilities": probabilities})
 
